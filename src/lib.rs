@@ -19,15 +19,16 @@
 //! * `\n` - line feed `0x0A` (unix newline)
 //! * `\r` - carriage return `0x0D`
 //! * `\t` - tab `0x09` (horizontal tab)
-//! * `\a` - vertical tab (0x0B)
-//! * `\\` - backslash (0x5C) (a single `\`)
-//! * `\'` - single quote (0x27) (a single `'`)
-//! * `\"` - double quote (0x22) (a single `"`)
+//! * `\a` - vertical tab `0x0B`
+//! * `\\` - backslash `0x5C` (a single `\`)
+//! * `\'` - single quote `0x27` (a single `'`)
+//! * `\"` - double quote `0x22` (a single `"`)
 //! * `\0` through `\377` - a single byte, specified in octal
 //! * `\x0` through `\xFF` - a single byte, specified in hex
 //! * `\u0` through `\uFFFF` - utf8 bytes of a single character, specified in hex
 //! * `\u{0}` through `\u{10FFFF}` - utf8 bytes of a single character, specified in Rust style hex
-//! * `\U0` through `\UFFFFFFFF` - utf8 bytes of a single character, specified in hex (of course the actual maximum is 10FFFF)
+//! * `\U0` through `\UFFFFFFFF` - utf8 bytes of a single character, specified in hex (of course, the actual maximum is 10FFFF, because that's currently the maximum valid codepoint)
+//! * `\c@`, `\cA` through `\cZ`, `\c[`, `\c\`, `\c]`, `\c^`, `\c_` - a control-x character (case insensitive) `0x0` through `0x1F`
 
 
 
