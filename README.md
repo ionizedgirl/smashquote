@@ -2,7 +2,7 @@
 
 smashquote - Removes C-like quotes from byte slices
 
-`smashquote` removes C-like quotes form byte slices. Specifically,
+`smashquote` removes C-like quotes and escape sequences from byte slices. Specifically,
 it understands the bash `$''` format. Unlike [snailquote](https://github.com/euank/snailquote),
 smashquote works on byte slices. It is intended for use in command line
 utilities and argument parsing where [OsString](std::ffi::OsString) handling may be desired,
@@ -22,7 +22,7 @@ smashquote understands the following backslash-escape sequences:
 * `\n` - line feed `0x0A` (unix newline)
 * `\r` - carriage return `0x0D`
 * `\t` - tab `0x09` (horizontal tab)
-* `\a` - vertical tab `0x0B`
+* `\v` - vertical tab `0x0B`
 * `\\` - backslash `0x5C` (a single `\`)
 * `\'` - single quote `0x27` (a single `'`)
 * `\"` - double quote `0x22` (a single `"`)

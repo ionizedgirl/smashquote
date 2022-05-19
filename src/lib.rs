@@ -64,7 +64,7 @@ pub fn pretty_string(bs: &[u8]) -> String {
 /// Error type of [unescape](unescape).
 #[derive(Debug, Error)]
 pub enum UnescapeError {
-    #[error("Invalid backslash-escape {string} at byte {offset}: {bytes}")]
+    #[error("Invalid backslash-escape {string:} at byte {offset}: {bytes:}")]
     /// An invalid backslash escape sequence while parsing
     InvalidBackslash {
         /// The byte offset of the backslash escape
@@ -77,7 +77,7 @@ pub enum UnescapeError {
         bytes: String,
     },
     
-    #[error("Reached end of string while looking for closing {string} ({bytes})")]
+    #[error("Reached end of string while looking for closing {string:} ({bytes:})")]
     /// Reached end of string while looking for closing delimiter byte
     MissingClose {
         /// An attempt at showing the close delimiter
@@ -221,7 +221,7 @@ where
                     b'\'' => out.write(&[b'\''])?, // single quote
                     b'"' => out.write(&[b'"'])?, // double quote
                     b'\\' => out.write(&[b'\\'])?, // literal backslash
-                    b'0' | b'1' => {
+                    b'0'..=b'9' => {
                         for _ in 3..=4 {
                             if let Some((_, &byte3)) = bytes.peek() {
                                 if byte3.is_ascii_digit() {
@@ -413,5 +413,37 @@ mod tests {
     fn null() {
         let r = unescape_bytes(&b"\\0".as_slice()).unwrap();
         assert_eq!(r, [0]);
+    }
+    #[test]
+    fn octal() {
+        for i in 0..=255 {
+            let s = format!("\\{i:o}");
+            let r = unescape_bytes(&s.as_bytes()).unwrap();
+            assert_eq!(r, [i]);
+        }
+    }
+    #[test]
+    fn octal0() {
+        for i in 0..=255 {
+            let s = format!("\\{i:03o}");
+            let r = unescape_bytes(&s.as_bytes()).unwrap();
+            assert_eq!(r, [i]);
+        }
+    }
+    #[test]
+    fn hex() {
+        for i in 0..=255 {
+            let s = format!("\\x{i:x}");
+            let r = unescape_bytes(&s.as_bytes()).unwrap();
+            assert_eq!(r, [i]);
+        }
+    }
+    #[test]
+    fn hex0() {
+        for i in 0..=255 {
+            let s = format!("\\x{i:02x}");
+            let r = unescape_bytes(&s.as_bytes()).unwrap();
+            assert_eq!(r, [i]);
+        }
     }
 }
