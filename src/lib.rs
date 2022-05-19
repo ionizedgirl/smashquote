@@ -1,3 +1,7 @@
+#![deny(rust_2018_idioms)]
+#![deny(rust_2021_compatibility)]
+#![deny(missing_docs)]
+
 //! smashquote - Removes shell-like quotes from byte slices
 
 use thiserror::Error;
@@ -17,8 +21,8 @@ pub fn pretty_string(bs: &[u8]) -> String {
     String::from_utf8_lossy(bs).chars()
         .map(|c| match c {
         '\u{0}'..='\u{20}' => char::from_u32((c as u32) + 0x2400u32).unwrap(),
-        _ => c,
         '\u{7F}' => '\u{247F}',
+        _ => c,
         }).collect()
 }
 
@@ -77,6 +81,60 @@ impl From<std::io::Error> for UnescapeError {
     }
 }
 
+fn unhex(escape: &[u8]) -> Option<Vec<u8>> {
+    let hex: String = match String::from_utf8(escape.to_vec()) {
+        Ok(s) => s,
+        Err(_) => { return None; }
+    };
+    let ord: u32 = match u32::from_str_radix(&hex, 16) {
+        Ok(b) => b,
+        Err(_) => { return None; }
+    };
+    let out_char: char = match char::from_u32(ord) {
+        Some(c) => c,
+        None => { return None; }
+    };
+    let mut s = String::with_capacity(8);
+    s.push(out_char);
+    return Some(s.into_bytes());
+}
+
+fn un_rust_style_u<'a, I>(
+    bytes: &mut I,
+    offset: usize,
+    escape: &mut Vec<u8>,
+) -> Result<Vec<u8>, UnescapeError>
+where
+    I: Iterator<Item = (usize, &'a u8)>,
+    I: ExactSizeIterator<Item = (usize, &'a u8)>,
+{
+    let mut found_close = false;
+    while let Some((_, &byte4)) = bytes.next() {
+        escape.push(byte4);
+        if byte4 == "}" {
+            found_close = true;
+            break;
+        }
+    }
+    if ! found_close {
+        return Err(UnescapeError::invalid_backslash(offset, &escape));
+    }
+    let end = escape.len()-2;
+    let start = 3;
+    if end == start {
+        return Err(UnescapeError::invalid_backslash(offset, &escape));
+    } else if end < start {
+        unreachable!();
+    }
+    
+    if let Some(utf8) = unhex(&escape[start..=end]) {
+        return Ok(utf8);
+    } else {
+        return Err(UnescapeError::invalid_backslash(offset, &escape));
+    }
+}
+
+
 /// Writes an unescaped string from an iterator
 /// 
 /// # Arguments
@@ -131,12 +189,12 @@ where
                         if let Some((_, &byte3)) = bytes.next() {
                             escape.push(byte3);
                         } else {
-                            UnescapeError::invalid_backslash(offset, &escape);
+                            return Err(UnescapeError::invalid_backslash(offset, &escape));
                         }
                         if let Some((_, &byte4)) = bytes.next() {
                             escape.push(byte4);
                         } else {
-                            UnescapeError::invalid_backslash(offset, &escape);
+                            return Err(UnescapeError::invalid_backslash(offset, &escape));
                         }
                         let octal: String = match String::from_utf8(escape[1..].to_vec()) {
                             Ok(s) => s,
@@ -152,22 +210,18 @@ where
                         if let Some((_, &byte3)) = bytes.next() {
                             escape.push(byte3);
                         } else {
-                            UnescapeError::invalid_backslash(offset, &escape);
+                            return Err(UnescapeError::invalid_backslash(offset, &escape));
                         }
                         if let Some((_, &byte4)) = bytes.next() {
                             escape.push(byte4);
                         } else {
-                            UnescapeError::invalid_backslash(offset, &escape);
+                            return Err(UnescapeError::invalid_backslash(offset, &escape));
                         }
-                        let hex: String = match String::from_utf8(escape[2..].to_vec()) {
-                            Ok(s) => s,
-                            Err(_) => { return Err(UnescapeError::invalid_backslash(offset, &escape)); }
-                        };
-                        let out_byte: u8 = match u8::from_str_radix(&hex, 16) {
-                            Ok(b) => b,
-                            Err(_) => { return Err(UnescapeError::invalid_backslash(offset, &escape)); }
-                        };
-                        out.write(&[out_byte])?
+                        if let Some(utf8) = unhex(&escape[1..]) {
+                            out.write(&utf8.as_slice())?
+                        } else {
+                            return Err(UnescapeError::invalid_backslash(offset, &escape));
+                        }
                     }
                     b'u' => {
                         if let Some((_, &byte3)) = bytes.next() {
@@ -180,7 +234,7 @@ where
                         }
                         out.write(&[out_byte])?
                     }
-                    others => { return Err(UnescapeError::invalid_backslash(offset, &escape)); }
+                    _ => { return Err(UnescapeError::invalid_backslash(offset, &escape)); }
                 };
             } else {
                 UnescapeError::invalid_backslash(offset, &escape);

@@ -2,7 +2,7 @@
 name = "smashquote"
 version = "0.1.0"
 edition = "2021"
-authors = "ionizedgirl"
+authors = ["ionizedgirl"]
 description = "Remove shell-like quotes from byte strings"
 readme = "README.md"
 repository = "https://github.com/ionizedgirl/smashquote"
