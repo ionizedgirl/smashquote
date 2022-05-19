@@ -4,7 +4,7 @@
 
 //! smashquote - Removes C-like quotes from byte slices
 //!
-//! `smashquote` removes C-like quotes form byte slices. Specifically,
+//! `smashquote` removes C-like quotes and escape sequences from byte slices. Specifically,
 //! it understands the bash `$''` format. Unlike [snailquote](https://github.com/euank/snailquote),
 //! smashquote works on byte slices. It is intended for use in command line
 //! utilities and argument parsing where [OsString](std::ffi::OsString) handling may be desired,
@@ -24,7 +24,7 @@
 //! * `\n` - line feed `0x0A` (unix newline)
 //! * `\r` - carriage return `0x0D`
 //! * `\t` - tab `0x09` (horizontal tab)
-//! * `\a` - vertical tab `0x0B`
+//! * `\v` - vertical tab `0x0B`
 //! * `\\` - backslash `0x5C` (a single `\`)
 //! * `\'` - single quote `0x27` (a single `'`)
 //! * `\"` - double quote `0x22` (a single `"`)
@@ -174,7 +174,7 @@ where
 /// 
 /// # Arguments
 /// 
-/// * `bytes` - An iterator that yields a position and byte like `[u8].iter().enumerate()`
+/// * `bytes` - An iterator that yields a position and byte like `[u8].iter().enumerate().peekable()`
 /// * `out` - An output stream, like `Vec<u8>`
 /// * `close` - An optional closing delimiter to look for
 pub fn unescape_iter<'a, I, O>(
@@ -220,6 +220,7 @@ where
                     b'v' => out.write(&[0x0B])?, // vertical tab
                     b'\'' => out.write(&[b'\''])?, // single quote
                     b'"' => out.write(&[b'"'])?, // double quote
+                    b'\\' => out.write(&[b'\\'])?, // literal backslash
                     b'0' | b'1' => {
                         for _ in 3..=4 {
                             if let Some((_, &byte3)) = bytes.peek() {
@@ -334,11 +335,83 @@ where
     }
 }
 
+/// Returns a new unescaped byte string from a byte slice
+/// 
+/// # Arguments
+/// 
+/// * `bytes` - An iterator that yields a position and byte like `[u8].iter().enumerate().peekable()`
+/// * `out` - An output stream, like `Vec<u8>`
+/// * `close` - An optional closing delimiter to look for
+pub fn unescape_bytes(
+    bytes: &[u8],
+) -> Result<Vec<u8>, UnescapeError> {
+    let mut r: Vec<u8> = Vec::with_capacity(bytes.len());
+    unescape_iter(&mut bytes.iter().enumerate().peekable(), &mut r, None)?;
+    return Ok(r);
+}
+
+
 #[cfg(test)]
 mod tests {
+    use crate::*;
     #[test]
-    fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
+    fn alarm() {
+        let r = unescape_bytes(&b"\\a".as_slice()).unwrap();
+        assert_eq!(r, [7]);
+    }
+    #[test]
+    fn backspace() {
+        let r = unescape_bytes(&b"\\b".as_slice()).unwrap();
+        assert_eq!(r, [8]);
+    }
+    #[test]
+    fn escape() {
+        let r = unescape_bytes(&b"\\e\\E".as_slice()).unwrap();
+        assert_eq!(r, [27, 27]);
+    }
+    #[test]
+    fn form_feed() {
+        let r = unescape_bytes(&b"\\f".as_slice()).unwrap();
+        assert_eq!(r, [12]);
+    }
+    #[test]
+    fn line_feed() {
+        let r = unescape_bytes(&b"\\n".as_slice()).unwrap();
+        assert_eq!(r, [10]);
+    }
+    #[test]
+    fn carriage_return() {
+        let r = unescape_bytes(&b"\\r".as_slice()).unwrap();
+        assert_eq!(r, [13]);
+    }
+    #[test]
+    fn tab() {
+        let r = unescape_bytes(&b"\\t".as_slice()).unwrap();
+        assert_eq!(r, [9]);
+    }
+    #[test]
+    fn vertical_tab() {
+        let r = unescape_bytes(&b"\\v".as_slice()).unwrap();
+        assert_eq!(r, [11]);
+    }
+    #[test]
+    fn backslash() {
+        let r = unescape_bytes(&b"\\\\".as_slice()).unwrap();
+        assert_eq!(r, b"\\");
+    }
+    #[test]
+    fn single_quote() {
+        let r = unescape_bytes(&b"\\'".as_slice()).unwrap();
+        assert_eq!(r, b"'");
+    }
+    #[test]
+    fn double_quote() {
+        let r = unescape_bytes(&b"\\\"".as_slice()).unwrap();
+        assert_eq!(r, b"\"");
+    }
+    #[test]
+    fn null() {
+        let r = unescape_bytes(&b"\\0".as_slice()).unwrap();
+        assert_eq!(r, [0]);
     }
 }
