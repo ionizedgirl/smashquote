@@ -1,2 +1,3 @@
 # smashquote
-Removes shell-like quotes from byte slices
+
+smashquote - Removes shell-like quotes from byte slices
