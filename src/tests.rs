@@ -186,3 +186,14 @@ fn unicode08() {
         }
     }
 }
+#[test]
+fn control_x() {
+    for x in b'@'..=b'~' {
+        let c = x & 0x1F;
+        let mut b = Vec::with_capacity(10);
+        b.extend(b"\\c");
+        b.push(x);
+        let r = unescape_bytes(&b).unwrap();
+        assert_eq!(r, &[c]);
+    }
+}
