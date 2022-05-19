@@ -34,13 +34,11 @@
 //! * `\u{0}` through `\u{10FFFF}` - utf8 bytes of a single character, specified in Rust style hex
 //! * `\U0` through `\UFFFFFFFF` - utf8 bytes of a single character, specified in hex (of course, the actual maximum is 10FFFF, because that's currently the maximum valid codepoint). The sequence stops at the first character that's not a hexidecimal digit.
 //! * `\c@`, `\cA` through `\cZ`, `\c[`, `\c\`, `\c]`, `\c^`, `\c_` - a control-x character (case insensitive, for some reason) `0x0` through `0x1F`
-
+//! * ``\c` ``, `\ca` through `\cz`, `\c{`, `\c|`, `\c}`, `\c~` - a control-x character (same as above) `0x0` through `0x1F`
 
 
 use std::iter::Peekable;
 use std::io::Write;
-
-use thiserror::Error;
 
 /// Prints bytes as space-separated hex digits
 pub fn pretty_bytes(bs: &[u8]) -> String {
@@ -61,12 +59,49 @@ pub fn pretty_string(bs: &[u8]) -> String {
         }).collect()
 }
 
-/// Error type of [unescape](unescape).
-#[derive(Debug, Error)]
+/// Describes what kind of invalid backslash escape was found
+#[derive(Debug)]
+pub enum InvalidBackslashKind {
+    /// `\u{`
+    RustStyleUnicodeMissingCloseBrace,
+    /// `\u{}`
+    RustStyleUnicodeMissingDigits,
+    /// Unicode escape wasn't a valid codepoint
+    UnicodeEscapeBadCodepoint,
+    /// Non-unicode bytes instead of hex digits
+    HexDigitsNotUnicode,
+    /// Hex digits werent 0-9A-Fa-f
+    HexDigitsNotHexDigits(Vec<u8>),
+    /// `\x` not followed by any digits
+    HexDigitsNoDigits,
+    /// Non-unicode bytes instead of octal digits
+    OctalDigitsNotUnicode,
+    /// Octal digits weren't 0-7
+    OctalDigitsNotOctalDigits,
+    /// `\u` not followed by any digits
+    UnicodeEscapeNoDigits,
+    /// `\u` right at end of the string
+    UnicodeEscapeEndOfString,
+    /// `\c` followed by an unknown key
+    ControlEscapeBadKey,
+    /// `\c` right at the end of the string
+    ControlEscapeEndOfString,
+    /// `\` followed by an unknown character
+    BackslashEscapeUnknown,
+    /// `\` right at the end of the string
+    BackslashEndOfString,
+}
+
+use InvalidBackslashKind::*;
+
+/// Error type of unescape/unquote functions.
+#[derive(Debug)]
 pub enum UnescapeError {
-    #[error("Invalid backslash-escape {string:} at byte {offset}: {bytes:}")]
     /// An invalid backslash escape sequence while parsing
     InvalidBackslash {
+        /// Which kind of invalid backslash, where parsing failed
+        kind: InvalidBackslashKind,
+        
         /// The byte offset of the backslash escape
         offset: usize,
         
@@ -77,7 +112,6 @@ pub enum UnescapeError {
         bytes: String,
     },
     
-    #[error("Reached end of string while looking for closing {string:} ({bytes:})")]
     /// Reached end of string while looking for closing delimiter byte
     MissingClose {
         /// An attempt at showing the close delimiter
@@ -87,22 +121,27 @@ pub enum UnescapeError {
         bytes: String,
     },
     
-    #[error("I/O error {0}")]
     /// Some I/O error happened...
     IOError(std::io::Error),
 }
 
 impl UnescapeError {
-    /// Generates a [MissingClose](MissingClose) error from a 1-byte delimiter
+    /// Generates a [MissingClose](UnescapeError::MissingClose) error from a 1-byte delimiter
     pub fn missing_close(byte: u8) -> Self {
         return Self::MissingClose {
             string: pretty_string(&[byte]),
             bytes: pretty_bytes(&[byte]),
         };
     }
-    /// Generates an [InvalidBackslash](InvalidBackslash) error
-    pub fn invalid_backslash(offset: usize, bytes: &[u8]) -> Self {
+    
+    /// Generates an [InvalidBackslash](UnescapeError::InvalidBackslash) error
+    pub fn invalid_backslash(
+        offset: usize,
+        bytes: &[u8],
+        kind: InvalidBackslashKind,
+    ) -> Self {
         return Self::InvalidBackslash {
+            kind: kind,
             offset: offset,
             string: pretty_string(bytes),
             bytes: pretty_bytes(bytes),
@@ -116,22 +155,34 @@ impl From<std::io::Error> for UnescapeError {
     }
 }
 
-fn unhex(escape: &[u8]) -> Option<Vec<u8>> {
-    let hex: String = match String::from_utf8(escape.to_vec()) {
+fn unhex<'a>(
+    offset: usize,
+    escape: &[u8],
+    start: usize,
+    end: Option<usize>,
+) -> Result<Vec<u8>, UnescapeError>
+{
+    let range = match end {
+        Some(i) => escape[start..=i].to_vec(),
+        None => escape[start..].to_vec(),
+    };
+    let hex: String = match String::from_utf8(range.clone()) {
         Ok(s) => s,
-        Err(_) => { return None; }
+        Err(_) => { return Err(UnescapeError::invalid_backslash(offset, &escape, HexDigitsNotUnicode)); }
     };
     let ord: u32 = match u32::from_str_radix(&hex, 16) {
         Ok(b) => b,
-        Err(_) => { return None; }
+        Err(_) => { return Err(UnescapeError::invalid_backslash(offset, &escape, HexDigitsNotHexDigits(range))); }
     };
     let out_char: char = match char::from_u32(ord) {
         Some(c) => c,
-        None => { return None; }
+        None => {
+            return Err(UnescapeError::invalid_backslash(offset, &escape, UnicodeEscapeBadCodepoint));
+        }
     };
     let mut s = String::with_capacity(8);
     s.push(out_char);
-    return Some(s.into_bytes());
+    return Ok(s.into_bytes());
 }
 
 fn un_rust_style_u<'a, I>(
@@ -152,21 +203,16 @@ where
         }
     }
     if ! found_close {
-        return Err(UnescapeError::invalid_backslash(offset, &escape));
+        return Err(UnescapeError::invalid_backslash(offset, &escape, RustStyleUnicodeMissingCloseBrace));
     }
     let end = escape.len()-2;
     let start = 3;
-    if end == start {
-        return Err(UnescapeError::invalid_backslash(offset, &escape));
+    if end == start-1 {
+        return Err(UnescapeError::invalid_backslash(offset, &escape, RustStyleUnicodeMissingDigits));
     } else if end < start {
         unreachable!();
     }
-    
-    if let Some(utf8) = unhex(&escape[start..=end]) {
-        return Ok(utf8);
-    } else {
-        return Err(UnescapeError::invalid_backslash(offset, &escape));
-    }
+    return Ok(unhex(offset, &escape, start, Some(end))?);
 }
 
 
@@ -232,11 +278,11 @@ where
                         }
                         let octal: String = match String::from_utf8(escape[1..].to_vec()) {
                             Ok(s) => s,
-                            Err(_) => { return Err(UnescapeError::invalid_backslash(offset, &escape)); }
+                            Err(_) => { return Err(UnescapeError::invalid_backslash(offset, &escape, OctalDigitsNotUnicode)); }
                         };
                         let out_byte: u8 = match u8::from_str_radix(&octal, 8) {
                             Ok(b) => b,
-                            Err(_) => { return Err(UnescapeError::invalid_backslash(offset, &escape)); }
+                            Err(_) => { return Err(UnescapeError::invalid_backslash(offset, &escape, OctalDigitsNotOctalDigits)); }
                         };
                         out.write(&[out_byte])?
                     }
@@ -250,15 +296,15 @@ where
                             }
                         }
                         if escape.len() == 2 { // just \x
-                            return Err(UnescapeError::invalid_backslash(offset, &escape));
+                            return Err(UnescapeError::invalid_backslash(offset, &escape, HexDigitsNoDigits));
                         }
                         let hex: String = match String::from_utf8(escape[2..].to_vec()) {
                             Ok(s) => s,
-                            Err(_) => { return Err(UnescapeError::invalid_backslash(offset, &escape)); }
+                            Err(_) => { return Err(UnescapeError::invalid_backslash(offset, &escape, HexDigitsNotUnicode)); }
                         };
                         let out_byte: u8 = match u8::from_str_radix(&hex, 16) {
                             Ok(b) => b,
-                            Err(_) => { return Err(UnescapeError::invalid_backslash(offset, &escape)); }
+                            Err(_) => { return Err(UnescapeError::invalid_backslash(offset, &escape, HexDigitsNotHexDigits(hex.as_bytes().to_vec()))); }
                         };
                         out.write(&[out_byte])?
                     }
@@ -270,7 +316,7 @@ where
                                 out.write(&u_bytes.as_slice())?
                             } else {
                                 if ! byte3.is_ascii_hexdigit() {
-                                    return Err(UnescapeError::invalid_backslash(offset, &escape));
+                                    return Err(UnescapeError::invalid_backslash(offset, &escape, UnicodeEscapeNoDigits));
                                 }
                                 for _ in 4..=6 {
                                     if let Some((_, &byte4)) = bytes.peek() {
@@ -280,21 +326,18 @@ where
                                         let (_, _) = bytes.next().unwrap();
                                     }
                                 }
-                                if let Some(utf8) = unhex(&escape[2..]) {
-                                    out.write(&utf8.as_slice())?
-                                } else {
-                                    return Err(UnescapeError::invalid_backslash(offset, &escape));
-                                }
+                                let utf8 = unhex(offset, &escape, 2, None)?;
+                                out.write(&utf8.as_slice())?
                             }
                         } else {
-                            return Err(UnescapeError::invalid_backslash(offset, &escape));
+                            return Err(UnescapeError::invalid_backslash(offset, &escape, UnicodeEscapeEndOfString));
                         }
                     }
                     b'U' => {
                         if let Some((_, &byte3)) = bytes.next() {
                             escape.push(byte3);
                             if ! byte3.is_ascii_hexdigit() {
-                                return Err(UnescapeError::invalid_backslash(offset, &escape));
+                                return Err(UnescapeError::invalid_backslash(offset, &escape, UnicodeEscapeNoDigits));
                             }
                             for _ in 4..=10 {
                                 if let Some((_, &byte4)) = bytes.peek() {
@@ -304,19 +347,30 @@ where
                                     let (_, _) = bytes.next().unwrap();
                                 }
                             }
-                            if let Some(utf8) = unhex(&escape[2..]) {
-                                out.write(&utf8.as_slice())?
-                            } else {
-                                return Err(UnescapeError::invalid_backslash(offset, &escape));
-                            }
+                            let utf8 = unhex(offset, &escape, 2, None)?;
+                            out.write(&utf8.as_slice())?
                         } else {
-                            return Err(UnescapeError::invalid_backslash(offset, &escape));
+                            return Err(UnescapeError::invalid_backslash(offset, &escape, UnicodeEscapeEndOfString));
                         }
                     }
-                    _ => { return Err(UnescapeError::invalid_backslash(offset, &escape)); }
+                    b'c' => {
+                        if let Some((_, &byte3)) = bytes.next() {
+                            escape.push(byte3);
+                            if (b'@'..=b'_').contains(&byte3) {
+                                out.write(&[byte3-0x40].as_slice())?
+                            } else if (b'`'..=b'~').contains(&byte3) {
+                                out.write(&[byte3-0x60].as_slice())?
+                            } else {
+                                return Err(UnescapeError::invalid_backslash(offset, &escape, ControlEscapeBadKey));
+                            }
+                        } else {
+                            return Err(UnescapeError::invalid_backslash(offset, &escape, ControlEscapeEndOfString));
+                        }
+                    }
+                    _ => { return Err(UnescapeError::invalid_backslash(offset, &escape, BackslashEscapeUnknown)); }
                 };
             } else {
-                UnescapeError::invalid_backslash(offset, &escape);
+                UnescapeError::invalid_backslash(offset, &escape, BackslashEndOfString);
             }
         } else if have_close && byte == close_delimiter {
             return Ok(offset);
@@ -339,9 +393,7 @@ where
 /// 
 /// # Arguments
 /// 
-/// * `bytes` - An iterator that yields a position and byte like `[u8].iter().enumerate().peekable()`
-/// * `out` - An output stream, like `Vec<u8>`
-/// * `close` - An optional closing delimiter to look for
+/// * `bytes` - A slice of bytes
 pub fn unescape_bytes(
     bytes: &[u8],
 ) -> Result<Vec<u8>, UnescapeError> {
@@ -350,6 +402,6 @@ pub fn unescape_bytes(
     return Ok(r);
 }
 
-
 #[cfg(test)]
 mod tests;
+

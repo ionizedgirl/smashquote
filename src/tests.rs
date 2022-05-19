@@ -91,3 +91,98 @@ fn hex0() {
         assert_eq!(r, [i]);
     }
 }
+#[test]
+fn unicode4() {
+    for i in 0u32..=0xFFFF {
+        match char::from_u32(i) {
+            Some(c) => {
+                let s = format!("\\u{i:x}");
+                let r = unescape_bytes(&s.as_bytes()).unwrap();
+                let mut s2 = String::with_capacity(8);
+                s2.push(c);
+                assert_eq!(r, s2.as_bytes());
+            }
+            None => {
+                let s = format!("\\u{i:x}");
+                let r = unescape_bytes(&s.as_bytes());
+                assert!(r.is_err());
+            }
+        }
+    }
+}
+#[test]
+fn unicode04() {
+    for i in 0u32..=0xFFFF {
+        match char::from_u32(i) {
+            Some(c) => {
+                let s = format!("\\u{i:04x}");
+                let r = unescape_bytes(&s.as_bytes()).unwrap();
+                let mut s2 = String::with_capacity(8);
+                s2.push(c);
+                assert_eq!(r, s2.as_bytes());
+            }
+            None => {
+                let s = format!("\\u{i:04x}");
+                let r = unescape_bytes(&s.as_bytes());
+                assert!(r.is_err());
+            }
+        }
+    }
+}
+#[test]
+fn unicode_rust_style() {
+    for i in 0u32..=0x10FFFF {
+        match char::from_u32(i) {
+            Some(c) => {
+                let s = format!("\\u{{{i:x}}}");
+                let r = unescape_bytes(&s.as_bytes()).unwrap();
+                let mut s2 = String::with_capacity(8);
+                s2.push(c);
+                assert_eq!(r, s2.as_bytes());
+            }
+            None => {
+                let s = format!("\\u{i:04x}");
+                let r = unescape_bytes(&s.as_bytes());
+                assert!(r.is_err());
+            }
+        }
+    }
+}
+#[test]
+fn unicode8() {
+    for i in 0u32..=0x10FFFF {
+        match char::from_u32(i) {
+            Some(c) => {
+                let s = format!("\\U{i:x}");
+                let r = unescape_bytes(&s.as_bytes()).unwrap();
+                let mut s2 = String::with_capacity(8);
+                s2.push(c);
+                assert_eq!(r, s2.as_bytes());
+            }
+            None => {
+                let s = format!("\\u{i:x}");
+                let r = unescape_bytes(&s.as_bytes());
+                assert!(r.is_err());
+            }
+        }
+    }
+}
+#[test]
+fn unicode08() {
+    for i in 0u32..=0x10FFFF {
+        match char::from_u32(i) {
+            Some(c) => {
+                let s = format!("\\U{i:08x}");
+                let r = unescape_bytes(&s.as_bytes()).unwrap();
+                let mut s2 = String::with_capacity(8);
+                s2.push(c);
+                assert_eq!(r, s2.as_bytes());
+            }
+            None => {
+                let s = format!("\\u{i:04x}");
+                let r = unescape_bytes(&s.as_bytes());
+                assert!(r.is_err());
+            }
+        }
+    }
+}
