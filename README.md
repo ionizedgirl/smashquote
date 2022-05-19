@@ -32,5 +32,6 @@ smashquote understands the following backslash-escape sequences:
 * `\u{0}` through `\u{10FFFF}` - utf8 bytes of a single character, specified in Rust style hex
 * `\U0` through `\UFFFFFFFF` - utf8 bytes of a single character, specified in hex (of course, the actual maximum is 10FFFF, because that's currently the maximum valid codepoint). The sequence stops at the first character that's not a hexidecimal digit.
 * `\c@`, `\cA` through `\cZ`, `\c[`, `\c\`, `\c]`, `\c^`, `\c_` - a control-x character (case insensitive, for some reason) `0x0` through `0x1F`
+* ``\c` ``, `\ca` through `\cz`, `\c{`, `\c|`, `\c}`, `\c~` - a control-x character (same as above) `0x0` through `0x1F`
 
 License: MIT OR Apache-2.0 OR GPL-3.0-or-later
