@@ -10,7 +10,7 @@ homepage = "https://github.com/ionizedgirl/smashquote"
 license = "MIT OR Apache-2.0 OR GPL-3.0-or-later"
 keywords = ["escape", "unescape", "shell-escape"]
 categories = ["command-line-interface"]
-publish = false
+publish = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
