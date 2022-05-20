@@ -53,7 +53,7 @@ pub fn pretty_bytes(bs: &[u8]) -> String {
 pub fn pretty_string(bs: &[u8]) -> String {
     String::from_utf8_lossy(bs).chars()
         .map(|c| match c {
-        '\u{0}'..='\u{20}' => char::from_u32((c as u32) + 0x2400u32).unwrap(),
+        '\u{0}'..='\u{20}' => char::from_u32((c as u32) + 0x2400u32).expect("Unicode code points 0x2400-2420 are valid."),
         '\u{7F}' => '\u{247F}',
         _ => c,
         }).collect()
@@ -273,7 +273,7 @@ where
                                 if byte3.is_ascii_digit() {
                                     escape.push(byte3);
                                 }
-                                let (_, _) = bytes.next().unwrap();
+                                let (_, _) = bytes.next().expect("Just peeked, so this should never return None.");
                             }
                         }
                         let octal: String = match String::from_utf8(escape[1..].to_vec()) {
@@ -292,7 +292,7 @@ where
                                 if byte3.is_ascii_hexdigit() {
                                     escape.push(byte3);
                                 }
-                                let (_, _) = bytes.next().unwrap();
+                                let (_, _) = bytes.next().expect("Just peeked, so this should never return None.");
                             }
                         }
                         if escape.len() == 2 { // just \x
@@ -323,7 +323,7 @@ where
                                         if byte3.is_ascii_hexdigit() {
                                             escape.push(byte4);
                                         }
-                                        let (_, _) = bytes.next().unwrap();
+                                        let (_, _) = bytes.next().expect("Just peeked, so this should never return None.");
                                     }
                                 }
                                 let utf8 = unhex(offset, &escape, 2, None)?;
@@ -344,7 +344,7 @@ where
                                     if byte3.is_ascii_hexdigit() {
                                         escape.push(byte4);
                                     }
-                                    let (_, _) = bytes.next().unwrap();
+                                    let (_, _) = bytes.next().expect("Just peeked, so this should never return None.");
                                 }
                             }
                             let utf8 = unhex(offset, &escape, 2, None)?;
@@ -385,7 +385,7 @@ where
     if have_close {
         Err(UnescapeError::missing_close(close_delimiter))
     } else {
-        return Ok(last_offset.unwrap());
+        return Ok(last_offset.expect("If last_offset isn't set by now, it's a bug."));
     }
 }
 

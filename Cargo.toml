@@ -1,6 +1,6 @@
 [package]
 name = "smashquote"
-version = "0.2.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["ionizedgirl"]
 description = "Remove shell-like quotes from byte strings"
@@ -10,7 +10,7 @@ homepage = "https://github.com/ionizedgirl/smashquote"
 license = "MIT OR Apache-2.0 OR GPL-3.0-or-later"
 keywords = ["escape", "unescape", "shell-escape"]
 categories = ["command-line-interface"]
-publish = false
+publish = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
