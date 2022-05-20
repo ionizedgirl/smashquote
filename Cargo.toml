@@ -17,4 +17,4 @@ publish = true
 [dependencies]
 
 [dev-dependencies]
-anyhow = "*"
+anyhow = "1"
