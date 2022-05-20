@@ -1,6 +1,6 @@
 [package]
 name = "smashquote"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 authors = ["ionizedgirl"]
 description = "Remove shell-like quotes from byte strings"
@@ -15,3 +15,6 @@ publish = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+
+[dev-dependencies]
+anyhow = "*"

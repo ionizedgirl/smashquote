@@ -14,6 +14,8 @@ as xargs or cut. In this situation, it's convienent for the user to enter
 arguments like `-d '\r\n'` on the command line. smashquote can be used to
 transform them into the correct sequence of bytes.
 
+### Features
+
 smashquote understands the following backslash-escape sequences:
 * `\a` - alert/bell `0x07`
 * `\b` - backspace `0x08`
@@ -33,5 +35,13 @@ smashquote understands the following backslash-escape sequences:
 * `\U0` through `\UFFFFFFFF` - utf8 bytes of a single character, specified in hex (of course, the actual maximum is 10FFFF, because that's currently the maximum valid codepoint). The sequence stops at the first character that's not a hexidecimal digit.
 * `\c@`, `\cA` through `\cZ`, `\c[`, `\c\`, `\c]`, `\c^`, `\c_` - a control-x character (case insensitive, for some reason) `0x0` through `0x1F`
 * ``\c` ``, `\ca` through `\cz`, `\c{`, `\c|`, `\c}`, `\c~` - a control-x character (same as above) `0x0` through `0x1F`
+
+smashquote produces errors that are compatible with crates like [anyhow](https://crates.io/crates/anyhow).
+
+### Acknowledgements
+
+Thanks to [Zoybean](https://github.com/Zoybean)
+and [zkat](https://github.com/zkat) for their help with various coding
+issues and suggestions for improvements.
 
 License: MIT OR Apache-2.0 OR GPL-3.0-or-later

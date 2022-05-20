@@ -1,4 +1,6 @@
 use crate::*;
+use anyhow;
+
 #[test]
 fn alarm() {
     let r = unescape_bytes(&b"\\a".as_slice()).unwrap();
@@ -196,4 +198,13 @@ fn control_x() {
         let r = unescape_bytes(&b).unwrap();
         assert_eq!(r, &[c]);
     }
+}
+#[test]
+fn anyhow_compatible() {
+    let _unescape_error = anyhow::Error::new::<UnescapeError>(UnescapeError::InvalidBackslash {
+        kind: InvalidBackslashKind::RustStyleUnicodeMissingCloseBrace,
+        string: String::new(),
+        bytes: String::new(),
+        offset: 0,
+    });
 }
